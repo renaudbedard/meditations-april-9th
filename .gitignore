@@ -34,3 +34,10 @@ sysinfo.txt
 # Builds
 *.apk
 *.unitypackage
+
+# Packages
+!Packages/manifest.json
+Packages/*
+
+# Media
+Media/
