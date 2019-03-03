@@ -36,8 +36,8 @@ sysinfo.txt
 *.unitypackage
 
 # Packages
-!Packages/manifest.json
 Packages/*
+!Packages/manifest.json
 
 # Media
 Media/

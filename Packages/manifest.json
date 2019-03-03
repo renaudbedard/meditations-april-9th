@@ -1,0 +1,17 @@
+{
+  "dependencies": {
+    "com.unity.burst": "0.2.4-preview.50",
+    "com.unity.collections": "0.0.9-preview.12",
+    "com.unity.mathematics": "1.0.0-preview.1",
+    "com.unity.package-manager-ui": "2.0.3",
+    "com.unity.postprocessing": "2.1.4",
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.particlesystem": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.ui": "1.0.0",
+    "com.unity.modules.vr": "1.0.0",
+    "com.unity.modules.xr": "1.0.0"
+  }
+}
