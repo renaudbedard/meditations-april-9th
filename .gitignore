@@ -41,3 +41,10 @@ Packages/*
 
 # Media
 Media/
+
+# Rider
+.idea/*
+!.idea/vcs.xml
+!.idea/misc.xml
+!.idea/indexLayout.xml
+!.idea/encodings.xml
