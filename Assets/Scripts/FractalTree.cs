@@ -23,30 +23,29 @@ public enum FallState
 
 public struct PetalData
 {
+    public float3 Position;
 	public float3 Velocity;
-	public float3 AngularVelocity;
+    public quaternion Rotation;
+    public float3 Scale;
+    public float3 AngularVelocity;
 	public FallState FallState;
 }
 
-public struct PetalTimer
+public struct AudioSourceTimer
 {
-    public Petal Petal;
+    public AudioSource AudioSource;
     public float Timer;
 }
 
 public class FractalTree : MonoBehaviour
 {
-	[Header("Prefabs")]
-	public Petal PetalPrefab;
+    [Header("References")]
+    [SerializeField] MeshFilter meshFilter;
 
-	[Header("References")]
-	[SerializeField] MeshFilter meshFilter;
+    [Header("Generated Data")]
+    [SerializeField] Mesh treeMesh = null;
 
-	[Header("Generated Data")]
-	[SerializeField] Mesh treeMesh = null;
-	[SerializeField] List<Petal> petals = new List<Petal>();
-
-	[Header("Generation")]
+    [Header("Generation")]
     [Range(1, 100)] public uint Seed;
     [Range(0, 16)] public int TotalDepth;
     [Range(0, 1)] public float BranchTilt;
@@ -54,277 +53,238 @@ public class FractalTree : MonoBehaviour
     [Range(0, 2)] public float TiltVariation;
     [Range(0, 2)] public float TangentVariation;
     [Range(0, 1)] public float Flatness;
-	[Range(1, 16)] public float TrunkDepth;
-	[Range(0, 10)] public float TrunkLength;
-	[Range(0, 2)] public float LengthVariation;
-	[Range(0.001f, 1)] public float Radius;
-	[Range(0, 10)] public float TrunkRadius;
-	[Range(0, 1)] public float LeafMinSize;
-	[Range(0, 2)] public float LeafMaxSize;
+    [Range(1, 16)] public float TrunkDepth;
+    [Range(0, 10)] public float TrunkLength;
+    [Range(0, 2)] public float LengthVariation;
+    [Range(0.001f, 1)] public float Radius;
+    [Range(0, 10)] public float TrunkRadius;
+    [Range(0, 1)] public float LeafMinSize;
+    [Range(0, 2)] public float LeafMaxSize;
 
-	[Header("Wind")]
-	public ParticleSystem WindParticleSystem;
-	[Range(0, 1)] public float WindDirectionVariation;
-	[Range(0, 1)] public float WindDirectionProbability;
-	[Range(0, 1)] public float WindDirectionReachDampen;
-	[Range(0, 1)] public float WindForceBase;
-	[Range(0, 1)] public float WindForceVariation;
-	[Range(0, 1)] public float WindForceProbability;
-	[Range(0, 10)] public float WindForceReachDampen;
-	[Range(0, 1)] public float Gravity;
-	[Tooltip("Leaves per second")] [Range(0, 9999)] public float FallRate;
-	[Range(0, 2)] public float PetalRotationForce;
+    [Header("Wind")]
+    public ParticleSystem WindParticleSystem;
+    [Range(0, 1)] public float WindDirectionVariation;
+    [Range(0, 1)] public float WindDirectionProbability;
+    [Range(0, 1)] public float WindDirectionReachDampen;
+    [Range(0, 1)] public float WindForceBase;
+    [Range(0, 1)] public float WindForceVariation;
+    [Range(0, 1)] public float WindForceProbability;
+    [Range(0, 10)] public float WindForceReachDampen;
+    [Range(0, 1)] public float Gravity;
+    [Tooltip("Leaves per second")] [Range(0, 9999)] public float FallRate;
+    [Range(0, 2)] public float PetalRotationForce;
 
-	[Header("Petal Mesh Data")]
-	public Material PetalMaterial;
-	public Mesh PetalMesh;
+    [Header("Petal Mesh Data")]
+    public Material PetalMaterial;
+    public Mesh PetalMesh;
 
     #region Generation
 
     struct Branch
-	{
-		public float3 From, To;
-		public quaternion Rotation;
-		public int Depth;
-		public float Trunkness;
-	}
+    {
+        public float3 From, To;
+        public quaternion Rotation;
+        public int Depth;
+        public float Trunkness;
+    }
 
-	struct Leaf
-	{
-		public float3 Position;
-		public float3 Normal;
-	}
+    struct Leaf
+    {
+        public float3 Position;
+        public float3 Normal;
+        public quaternion LookAt;
+        public float3 Scale;
+    }
 
-	readonly List<Branch> branches = new List<Branch>();
-	readonly List<Leaf> leaves = new List<Leaf>();
+    readonly List<Branch> branches = new List<Branch>();
+    readonly List<Leaf> leaves = new List<Leaf>();
 
     void Reset()
     {
         meshFilter = GetComponent<MeshFilter>();
-	}
+    }
 
     void Refresh()
     {
 #if UNITY_EDITOR
-		if (!treeMesh || !meshFilter.sharedMesh)
+        if (!treeMesh || !meshFilter.sharedMesh)
             meshFilter.sharedMesh = treeMesh = new Mesh();
 #endif
 
-		leaves.Clear();
-		branches.Clear();
+        leaves.Clear();
+        branches.Clear();
 
-		var random = new Random(Seed);
+        var random = new Random(Seed);
         BuildSubtree(float3(0, 0, 0), math.quaternion.identity, TotalDepth, random);
 
-		var vertices = new List<Vector3>();
-		var normals = new List<Vector3>();
-		var indices = new List<int>();
-		var texCoords = new List<Vector4>();
+        var vertices = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var indices = new List<int>();
+        var texCoords = new List<Vector4>();
 
-		for (int i = 0; i < branches.Count; i++)
-		{
-			var branch = branches[i];
+        for (int i = 0; i < branches.Count; i++)
+        {
+            var branch = branches[i];
 
-			var baseNormalizedDepth = ((float)branch.Depth + 1) / (TotalDepth + 1);
-			var topNormalizedDepth = max((float)branch.Depth / (TotalDepth + 1), 0.001f);
+            var baseNormalizedDepth = ((float)branch.Depth + 1) / (TotalDepth + 1);
+            var topNormalizedDepth = max((float)branch.Depth / (TotalDepth + 1), 0.001f);
 
-			var baseRadius = Radius * baseNormalizedDepth;
-			var topRadius = Radius * topNormalizedDepth;
+            var baseRadius = Radius * baseNormalizedDepth;
+            var topRadius = Radius * topNormalizedDepth;
 
-			var baseTrunkness = 1 - saturate(((float)TotalDepth - branch.Depth) / TrunkDepth);
-			var topTrunkness = 1 - saturate(((float)TotalDepth - (branch.Depth - 1)) / TrunkDepth);
+            var baseTrunkness = 1 - saturate(((float)TotalDepth - branch.Depth) / TrunkDepth);
+            var topTrunkness = 1 - saturate(((float)TotalDepth - (branch.Depth - 1)) / TrunkDepth);
 
-			baseRadius *= lerp(1, 1 + TrunkRadius, baseTrunkness);
-			topRadius *= lerp(1, 1 + TrunkRadius, topTrunkness);
+            baseRadius *= lerp(1, 1 + TrunkRadius, baseTrunkness);
+            topRadius *= lerp(1, 1 + TrunkRadius, topTrunkness);
 
-			int segments = Mathf.RoundToInt(Mathf.Lerp(4, 7, baseNormalizedDepth));
+            int segments = Mathf.RoundToInt(Mathf.Lerp(4, 7, baseNormalizedDepth));
 
-			var direction = normalize(branch.To - branch.From);
+            var direction = normalize(branch.To - branch.From);
 
-			int fromVertex = vertices.Count;
+            int fromVertex = vertices.Count;
 
-			for (int j = 0; j < segments; j++)
-			{
-				var angle = (float)j / segments * Mathf.PI * 2;
-				var offset = mul(branch.Rotation, float3(cos(angle), 0, sin(angle)) * baseRadius);
-				vertices.Add(branch.From + offset);
-				normals.Add(normalize(offset));
+            for (int j = 0; j < segments; j++)
+            {
+                var angle = (float)j / segments * Mathf.PI * 2;
+                var offset = mul(branch.Rotation, float3(cos(angle), 0, sin(angle)) * baseRadius);
+                vertices.Add(branch.From + offset);
+                normals.Add(normalize(offset));
 
-				var bendability = 1 - baseNormalizedDepth;
-				texCoords.Add(new Vector4(bendability, 0, 0, 0));
+                var bendability = 1 - baseNormalizedDepth;
+                texCoords.Add(new Vector4(bendability, 0, 0, 0));
 
-				offset = mul(branch.Rotation, float3(cos(angle), 0, sin(angle)) * topRadius);
-				vertices.Add(branch.To + offset);
-				normals.Add(normalize(offset));
+                offset = mul(branch.Rotation, float3(cos(angle), 0, sin(angle)) * topRadius);
+                vertices.Add(branch.To + offset);
+                normals.Add(normalize(offset));
 
-				bendability = 1 - topNormalizedDepth;
-				texCoords.Add(new Vector4(bendability, 0, 0, 0));
-			}
+                bendability = 1 - topNormalizedDepth;
+                texCoords.Add(new Vector4(bendability, 0, 0, 0));
+            }
 
-			int toVertex = vertices.Count;
+            int toVertex = vertices.Count;
 
-			var range = toVertex - fromVertex;
-			for (int j = 0; j < range; j += 2)
-			{
-				indices.Add(WrapIndex(fromVertex, j, range));
-				indices.Add(WrapIndex(fromVertex, j + 1, range));
-				indices.Add(WrapIndex(fromVertex, j + 2, range));
+            var range = toVertex - fromVertex;
+            for (int j = 0; j < range; j += 2)
+            {
+                indices.Add(WrapIndex(fromVertex, j, range));
+                indices.Add(WrapIndex(fromVertex, j + 1, range));
+                indices.Add(WrapIndex(fromVertex, j + 2, range));
 
-				indices.Add(WrapIndex(fromVertex, j + 2, range));
-				indices.Add(WrapIndex(fromVertex, j + 1, range));
-				indices.Add(WrapIndex(fromVertex, j + 3, range));
-			}
-		}
+                indices.Add(WrapIndex(fromVertex, j + 2, range));
+                indices.Add(WrapIndex(fromVertex, j + 1, range));
+                indices.Add(WrapIndex(fromVertex, j + 3, range));
+            }
+        }
 
-		treeMesh.Clear();
+        treeMesh.Clear();
 
-		treeMesh.indexFormat = IndexFormat.UInt32;
-		treeMesh.subMeshCount = 1;
+        treeMesh.indexFormat = IndexFormat.UInt32;
+        treeMesh.subMeshCount = 1;
 
-		treeMesh.SetVertices(vertices);
-		treeMesh.SetUVs(0, texCoords);
-		treeMesh.SetIndices(indices.ToArray(), MeshTopology.Triangles, 0);
-		treeMesh.SetNormals(normals);
+        treeMesh.SetVertices(vertices);
+        treeMesh.SetUVs(0, texCoords);
+        treeMesh.SetIndices(indices.ToArray(), MeshTopology.Triangles, 0);
+        treeMesh.SetNormals(normals);
 
-		treeMesh.RecalculateBounds();
+        treeMesh.RecalculateBounds();
+    }
 
-		for (int i = 0; i < leaves.Count; i++)
-		{
-			Petal petal = null;
-			var leaf = leaves[i];
+    int WrapIndex(int @base, int offset, int limit)
+    {
+        return (offset % limit) + @base;
+    }
 
-			if (i >= petals.Count)
-			{
-#if UNITY_EDITOR
-				if (!Application.isPlaying)
-				{
-					petal = (Petal)UnityEditor.PrefabUtility.InstantiatePrefab(PetalPrefab);
-					//petal.transform.SetParent(transform);
-				}
-				else
-				{
-					//petal = Instantiate(PetalPrefab, transform);
-					petal = Instantiate(PetalPrefab);
-				}
-#else
-				//petal = Instantiate(PetalPrefab, transform);
-				petal = Instantiate(PetalPrefab);
-#endif
-				petals.Add(petal);
-			}
-			else
-			{
-				petal = petals[i];
-				petal.transform.SetParent(null);
-			}
-
-			petal.transform.localPosition = leaf.Position;
-			petal.transform.LookAt(petal.transform.position + (Vector3)leaf.Normal);
-			//petal.transform.localRotation = Quaternion.identity;
-			petal.transform.localScale = float3(random.NextFloat(LeafMinSize, LeafMaxSize));
-		}
-
-		// clean up
-		if (petals.Count > leaves.Count)
-		{
-			for (int i = leaves.Count; i < petals.Count; i++)
-			{
-				var oldPetal = petals[i];
-#if UNITY_EDITOR
-				UnityEditor.EditorApplication.delayCall += () => { if (oldPetal) DestroyImmediate(oldPetal.gameObject); };
-#endif
-			}
-			petals.RemoveRange(leaves.Count, petals.Count - leaves.Count);
-		}
-
-		return;
-	}
-
-	int WrapIndex(int @base, int offset, int limit)
-	{
-		return (offset % limit) + @base;
-	}
-
-	void OnValidate()
+    void OnValidate()
     {
         Refresh();
     }
 
-	void BuildSubtree(float3 origin, quaternion rotation, int depth, math.Random rng)
-	{
-		var normalizedDepth = ((float)depth + 1) / (TotalDepth + 1);
-		var trunkness = 1 - saturate(((float)TotalDepth - depth) / TrunkDepth);
-		var lengthModifier = lerp(1, 1 + TrunkLength, trunkness);
+    void BuildSubtree(float3 origin, quaternion rotation, int depth, math.Random rng)
+    {
+        var normalizedDepth = ((float)depth + 1) / (TotalDepth + 1);
+        var trunkness = 1 - saturate(((float)TotalDepth - depth) / TrunkDepth);
+        var lengthModifier = lerp(1, 1 + TrunkLength, trunkness);
 
-		lengthModifier += rng.NextFloat(-1, 1) * LengthVariation;
+        lengthModifier += rng.NextFloat(-1, 1) * LengthVariation;
 
-		var dir = rotate(rotation, float3(0, 1, 0));
-		var dest = origin + dir * BranchLength * normalizedDepth * lengthModifier;
+        var dir = rotate(rotation, float3(0, 1, 0));
+        var dest = origin + dir * BranchLength * normalizedDepth * lengthModifier;
 
-		branches.Add(new Branch
-		{
-			From = origin,
-			To = dest,
-			Rotation = rotation,
-			Depth = depth,
-			Trunkness = trunkness
-		});
+        branches.Add(new Branch
+        {
+            From = origin,
+            To = dest,
+            Rotation = rotation,
+            Depth = depth,
+            Trunkness = trunkness
+        });
 
-		if (depth > 0)
-		{
-			var commonYaw = math.quaternion.AxisAngle(new float3(0, 1, 0), rng.NextFloat() * (float)PI * 2);
-			var flatYaw = math.quaternion.identity;
+        if (depth > 0)
+        {
+            var commonYaw = math.quaternion.AxisAngle(new float3(0, 1, 0), rng.NextFloat() * (float)PI * 2);
+            var flatYaw = math.quaternion.identity;
 
-			for (int i = 0; i < 2; i++)
-			{
-				var randomYaw = math.quaternion.AxisAngle(new float3(0, 1, 0), rng.NextFloat() * (float)PI * 2);
-				var actualYaw = slerp(slerp(commonYaw, randomYaw, TangentVariation), flatYaw, Flatness);
-				var tangent = rotate(actualYaw, float3(0, 0, 1));
+            for (int i = 0; i < 2; i++)
+            {
+                var randomYaw = math.quaternion.AxisAngle(new float3(0, 1, 0), rng.NextFloat() * (float)PI * 2);
+                var actualYaw = slerp(slerp(commonYaw, randomYaw, TangentVariation), flatYaw, Flatness);
+                var tangent = rotate(actualYaw, float3(0, 0, 1));
 
-				var tiltAngle = lerp(BranchTilt, rng.NextFloat() * BranchTilt * 2, TiltVariation);
-				var actualTiltAngle = lerp(-1, 1, i) * tiltAngle;
-				var pitch = math.quaternion.AxisAngle(tangent, actualTiltAngle);
+                var tiltAngle = lerp(BranchTilt, rng.NextFloat() * BranchTilt * 2, TiltVariation);
+                var actualTiltAngle = lerp(-1, 1, i) * tiltAngle;
+                var pitch = math.quaternion.AxisAngle(tangent, actualTiltAngle);
 
-				BuildSubtree(dest, mul(pitch, rotation), depth - 1, rng);
-			}
-		}
-		else
-			leaves.Add(new Leaf { Position = dest, Normal = dest - origin } );
-	}
+                BuildSubtree(dest, mul(pitch, rotation), depth - 1, rng);
+            }
+        }
+        else
+        {
+            var leaf = new Leaf
+            {
+                Position = dest,
+                Normal = dest - origin,
+            };
+
+            leaf.LookAt = Quaternion.LookRotation(leaf.Normal);
+            leaf.Scale = float3(rng.NextFloat(LeafMinSize, LeafMaxSize));
+
+            leaves.Add(leaf);
+        }
+    }
 
     #endregion
 
-    Petal[] orderedPetals;
-	TransformAccessArray petalTransformAccess;
-	NativeArray<PetalData> petalData;
+    NativeArray<PetalData> petalData;
     NativeQueue<int> groundedIndices, risingIndices;
     JobHandle petalUpdateJobHandle;
     Queue<int> detachableIndices;
 
-    readonly List<PetalTimer> audioDisableQueue = new List<PetalTimer>();
+    Pool<AudioSource> audioSources;
+    readonly List<AudioSourceTimer> audioDisableQueue = new List<AudioSourceTimer>();
 
     NativeArray<Matrix4x4> petalMatrices;
     readonly Matrix4x4[] matrixBuffer = new Matrix4x4[1022];
 
-	CommandBuffer depthCommandBuffer;
-	CommandBuffer opaqueCommandBuffer;
+    CommandBuffer depthCommandBuffer;
+    CommandBuffer opaqueCommandBuffer;
 
-	NativeArray<float> instanceData;
-	readonly float[] instanceDataBuffer = new float[1022];
-	readonly List<MaterialPropertyBlock> instanceDataPropertyBlocks = new List<MaterialPropertyBlock>();
+    NativeArray<float> instanceData;
+    readonly float[] instanceDataBuffer = new float[1022];
+    readonly List<MaterialPropertyBlock> instanceDataPropertyBlocks = new List<MaterialPropertyBlock>();
     int shadowCasterPassId, attachStatePropertyId;
 
     float fallTimer;
 
-	float3 windBaseDirection, windBaseTangent;
-	float3 windDirectionRandomTarget;
-	Vector3 windDirectionVelocity;
-	float3 windDirection;
-	float windForce;
-	float windForceRandomTarget;
-	float windForceVelocity;
-	Random windRng;
-	float shakeAccumulator;
+    float3 windBaseDirection, windBaseTangent;
+    float3 windDirectionRandomTarget;
+    Vector3 windDirectionVelocity;
+    float3 windDirection;
+    float windForce;
+    float windForceRandomTarget;
+    float windForceVelocity;
+    Random windRng;
+    float shakeAccumulator;
 
     float shake;
     float bendAngle;
@@ -337,8 +297,34 @@ public class FractalTree : MonoBehaviour
     Camera mainCamera;
 
     void Awake()
-	{
-		Seed = new uint[] { 43, 4, 12, 25, 70, 81, 92, 100 }.Shuffle(new Random((uint) DateTime.Now.Ticks)).First();
+    {
+        audioSources = new Pool<AudioSource>(() =>
+            {
+                var audioSourceGO = new GameObject("Petal AudioSource");
+                var audioSource = audioSourceGO.AddComponent<AudioSource>();
+
+                audioSource.playOnAwake = false;
+                audioSource.spatialBlend = 1;
+                audioSource.minDistance = 2;
+                audioSource.maxDistance = 100;
+                audioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+
+                audioSource.enabled = false;
+                audioSourceGO.transform.SetParent(transform);
+                return audioSource;
+            },
+            audioSource =>
+            {
+                audioSource.Stop();
+                audioSource.clip = null;
+                audioSource.enabled = false;
+            }
+        )
+        {
+            Capacity = 1000
+        };
+
+        Seed = new uint[] { 43, 4, 12, 25, 70, 81, 92, 100 }.Shuffle(new Random((uint) DateTime.Now.Ticks)).First();
 		Refresh();
 
 		windRng = new Random(Seed);
@@ -378,22 +364,27 @@ public class FractalTree : MonoBehaviour
 
 	void Start()
 	{
-		orderedPetals = petals.Shuffle(windRng).ToArray();
-		petalTransformAccess = new TransformAccessArray(orderedPetals.Select(x => x.transform).ToArray());
-		petalData = new NativeArray<PetalData>(petals.Count, Allocator.Persistent);
+		petalData = new NativeArray<PetalData>(leaves.Count, Allocator.Persistent);
         groundedIndices = new NativeQueue<int>(Allocator.Persistent);
         detachableIndices = new Queue<int>();
-        petalMatrices = new NativeArray<Matrix4x4>(petals.Count, Allocator.Persistent);
-        instanceData = new NativeArray<float>(orderedPetals.Length, Allocator.Persistent);
+        petalMatrices = new NativeArray<Matrix4x4>(leaves.Count, Allocator.Persistent);
+        instanceData = new NativeArray<float>(leaves.Count, Allocator.Persistent);
         risingIndices = new NativeQueue<int>(Allocator.Persistent);
 
-        for (int i = 0; i < petals.Count; i++)
+        var orderedLeaves = leaves.Shuffle(windRng).ToArray();
+
+        for (int i = 0; i < leaves.Count; i++)
         {
             detachableIndices.Enqueue(i);
             instanceData[i] = 1;
-            petals[i].Tree = this;
+            petalData[i] = new PetalData
+            {
+                Position = orderedLeaves[i].Position,
+                Rotation = orderedLeaves[i].LookAt,
+                Scale = orderedLeaves[i].Scale
+            };
         }
-		for (int i = 0; i < petals.Count; i += instanceDataBuffer.Length)
+		for (int i = 0; i < leaves.Count; i += instanceDataBuffer.Length)
 			instanceDataPropertyBlocks.Add(new MaterialPropertyBlock());
 
 		windDirection = windBaseDirection = WindParticleSystem.transform.forward;
@@ -408,7 +399,6 @@ public class FractalTree : MonoBehaviour
 	void OnDestroy()
 	{
         instanceData.Dispose();
-		petalTransformAccess.Dispose();
 		petalData.Dispose();
 		groundedIndices.Dispose();
 		petalMatrices.Dispose();
@@ -421,9 +411,9 @@ public class FractalTree : MonoBehaviour
 		CameraControl.Instance.DoClose(5);
 	}
 
-    public void QueueDisableAudioSource(Petal petal, float time)
+    public void QueueReturnAudioSource(AudioSource audioSource, float time)
     {
-        audioDisableQueue.Add(new PetalTimer { Petal = petal, Timer = time });
+        audioDisableQueue.Add(new AudioSourceTimer { AudioSource = audioSource, Timer = time });
     }
 
 	void Update()
@@ -461,7 +451,9 @@ public class FractalTree : MonoBehaviour
 
             // bake the vertex shader animation in its transform
             float variation = shake * 0.15f * abs(bendAngle);
-            orderedPetals[petalIndex].transform.RotateAround(Vector3.zero, bendAxis, Mathf.Rad2Deg * ((bendAngle + variation) * 0.5f));
+
+            // TODO: how do we do this without a transform?
+            // orderedPetals[petalIndex].transform.RotateAround(Vector3.zero, bendAxis, Mathf.Rad2Deg * ((bendAngle + variation) * 0.5f));
 
             // no more petals!
             if (detachableIndices.Count == 0)
@@ -478,7 +470,7 @@ public class FractalTree : MonoBehaviour
 		{
 			DeltaTime = Time.deltaTime,
 			Gravity = Gravity,
-			PetalRotationForce = PetalRotationForce,
+			PetalRotationForce = Mathf.Deg2Rad * PetalRotationForce,
 			WindDirection = windDirection,
 			WindForce = windForce,
             GroundedIndices = groundedIndices.ToConcurrent(),
@@ -491,7 +483,7 @@ public class FractalTree : MonoBehaviour
         };
         DoRise = false;
 
-        petalUpdateJobHandle = petalUpdateJob.Schedule(petalTransformAccess);
+        petalUpdateJobHandle = petalUpdateJob.Schedule(petalData.Length, petalData.Length / 8);
 
         JobHandle.ScheduleBatchedJobs();
 
@@ -507,15 +499,15 @@ public class FractalTree : MonoBehaviour
 
         for (int i = audioDisableQueue.Count - 1; i >= 0; i--)
         {
-            PetalTimer pt = audioDisableQueue[i];
-            pt.Timer -= Time.deltaTime;
-            if (pt.Timer <= 0)
+            var queueElement = audioDisableQueue[i];
+            queueElement.Timer -= Time.deltaTime;
+            if (queueElement.Timer <= 0)
             {
-	            pt.Petal.DisableAudio();
+	            audioSources.Return(queueElement.AudioSource);
 	            audioDisableQueue.RemoveAtSwapBack(i);
             }
             else
-	            audioDisableQueue[i] = pt;
+	            audioDisableQueue[i] = queueElement;
         }
     }
 
@@ -526,21 +518,21 @@ public class FractalTree : MonoBehaviour
         sinceTrig += Time.deltaTime;
         if (sinceTrig > 0.15f && risingIndices.TryDequeue(out int risingPetalIndex))
         {
-            orderedPetals[risingPetalIndex].TriggerAudio(OneShotGroup.B);
+            PlayAudioClip(OneShotGroup.B, risingPetalIndex);
             sinceTrig = 0;
         }
 
         while (groundedIndices.TryDequeue(out int groundedPetalIndex))
         {
-            orderedPetals[groundedPetalIndex].TriggerAudio();
+            PlayAudioClip((OneShotGroup)UnityEngine.Random.Range(0, 3), groundedPetalIndex);
         }
 
 		depthCommandBuffer.Clear();
 		opaqueCommandBuffer.Clear();
 
-		for (int i = 0, blockIndex = 0; i < orderedPetals.Length; i += matrixBuffer.Length, blockIndex++)
+		for (int i = 0, blockIndex = 0; i < leaves.Count; i += matrixBuffer.Length, blockIndex++)
 		{
-			var batchSize = Math.Min(orderedPetals.Length - i, 1022);
+			var batchSize = Math.Min(leaves.Count - i, 1022);
 
 			var propertyBlock = instanceDataPropertyBlocks[blockIndex];
 			instanceData.Slice(i, batchSize).CopyToFast(instanceDataBuffer);
@@ -553,8 +545,29 @@ public class FractalTree : MonoBehaviour
 		}
 	}
 
+    void PlayAudioClip(OneShotGroup group, int petalIndex)
+    {
+        var petalPosition = petalData[petalIndex].Position;
+        var distanceToCamera = distance(petalPosition, mainCamera.transform.position);
+
+        if (distanceToCamera >= 100)
+            return;
+
+        var audioSource = audioSources.Take();
+        audioSource.enabled = true;
+
+        audioSource.transform.position = petalPosition;
+        audioSource.priority = 2 + (int) floor(distanceToCamera);
+
+        var clip = AudioManager.Instance.GetOneShot(group);
+        audioSource.clip = clip;
+        audioSource.Play();
+
+        QueueReturnAudioSource(audioSource, clip.length);
+    }
+
     [BurstCompile(FloatMode = FloatMode.Fast)]
-	private struct PetalUpdateJob : IJobParallelForTransform
+	private struct PetalUpdateJob : IJobParallelFor
 	{
 		[ReadOnly] public float Gravity;
         [ReadOnly] public float DeltaTime;
@@ -571,7 +584,7 @@ public class FractalTree : MonoBehaviour
         [WriteOnly] public NativeQueue<int>.Concurrent RisingIndices;
         [WriteOnly] public NativeArray<Matrix4x4> MatricesArray;
 
-        public void Execute(int i, TransformAccess transform)
+        public void Execute(int i)
 		{
             bool dirty = false;
 
@@ -593,28 +606,28 @@ public class FractalTree : MonoBehaviour
 
                 petalData.AngularVelocity += WindDirection * DeltaTime * PetalRotationForce;
 
-                transform.localPosition += (Vector3)petalData.Velocity;
-                transform.localRotation *= Quaternion.Euler(petalData.AngularVelocity);
+                petalData.Position += petalData.Velocity;
 
-                if (transform.localPosition.y <= 0)
+                petalData.Rotation = mul(petalData.Rotation, math.quaternion.Euler(petalData.AngularVelocity));
+
+                if (petalData.Position.y <= 0)
                 {
                     // newly grounded
-                    var pos = transform.localPosition;
-                    transform.localPosition = new Vector3(pos.x, 0, pos.z);
+                    petalData.Position.y = 0;
                     petalData.FallState = FallState.Grounded;
-                    petalData.Velocity *= float3(1, 0, 1);
+                    petalData.Velocity.y = 0;
                     GroundedIndices.Enqueue(i);
                 }
 
                 dirty = true;
             }
-            else if (DoRise && petalData.FallState == FallState.Grounded && distance(transform.localPosition, CameraPosition) < 6)
+            else if (DoRise && petalData.FallState == FallState.Grounded && distance(petalData.Position, CameraPosition) < 6)
             {
                 // rising leaves
-                petalData.AngularVelocity = new Random(RandomSeed + (uint)i).NextFloat3Direction();
-                petalData.Velocity = normalize((float3)transform.localPosition - CameraPosition) * 0.05f;
+                petalData.AngularVelocity = Mathf.Deg2Rad * new Random(RandomSeed + (uint)i).NextFloat3Direction();
+                petalData.Velocity = normalize(petalData.Position - CameraPosition) * 0.05f;
                 petalData.Velocity.y = 0.05f;
-                transform.localPosition += Vector3.up * 0.001f;
+                petalData.Position.y += 0.001f;
 
                 petalData.FallState = FallState.Flying;
 
@@ -628,8 +641,9 @@ public class FractalTree : MonoBehaviour
                 petalData.Velocity = Damp(petalData.Velocity, 0.001f, DeltaTime);
                 petalData.AngularVelocity = Damp(petalData.AngularVelocity, 0.001f, DeltaTime);
 
-                transform.localPosition += (Vector3)petalData.Velocity;
-                transform.localRotation *= Quaternion.Euler(petalData.AngularVelocity);
+                petalData.Position += petalData.Velocity;
+
+                petalData.Rotation = mul(petalData.Rotation, math.quaternion.Euler(petalData.AngularVelocity));
 
                 dirty = true;
             }
@@ -637,7 +651,7 @@ public class FractalTree : MonoBehaviour
             if (dirty)
             {
                 DataArray[i] = petalData;
-                MatricesArray[i] = Matrix4x4.TRS(transform.localPosition, transform.localRotation, transform.localScale);
+                MatricesArray[i] = math.float4x4.TRS(petalData.Position, petalData.Rotation, petalData.Scale);
             }
         }
 	}
