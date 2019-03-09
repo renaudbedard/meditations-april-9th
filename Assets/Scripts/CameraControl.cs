@@ -104,25 +104,25 @@ public class CameraControl : MonoBehaviour
 		
 		camTransform.localEulerAngles = currentAngles;
 
-        if (w || s || d || a)
-            tree.DoRise = true;
+		if (w || s || d || a)
+			tree.DoRise = true;
 
 		if (Input.GetKeyDown(KeyCode.Escape))
-        { 
-            if (Application.isEditor)
-                Cursor.lockState = Cursor.lockState == CursorLockMode.Locked ? CursorLockMode.None : CursorLockMode.Locked;
-            else
-                DoClose(1);
-        }
+		{ 
+			if (Application.isEditor)
+				Cursor.lockState = Cursor.lockState == CursorLockMode.Locked ? CursorLockMode.None : CursorLockMode.Locked;
+			else
+				DoClose(1);
+		}
 	}
 
-    Coroutine closeCoroutine;
+	Coroutine closeCoroutine;
 	public void DoClose(float inSeconds)
 	{
 		if (closeCoroutine != null)
 			return;
 
-        closeCoroutine = StartCoroutine(Close(inSeconds));
+		closeCoroutine = StartCoroutine(Close(inSeconds));
 	}
 
 	private IEnumerator Close(float inSeconds)
