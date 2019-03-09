@@ -321,7 +321,7 @@ public class FractalTree : MonoBehaviour
 			}
 		)
 		{
-			Capacity = 1000
+			Capacity = 1500
 		};
 
 		Seed = new uint[] { 43, 4, 12, 25, 70, 81, 92, 100 }.Shuffle(new Random((uint) DateTime.Now.Ticks)).First();
@@ -483,7 +483,7 @@ public class FractalTree : MonoBehaviour
 		};
 		DoRise = false;
 
-		petalUpdateJobHandle = petalUpdateJob.Schedule(petalData.Length, petalData.Length / 8);
+		petalUpdateJobHandle = petalUpdateJob.Schedule(petalData.Length, petalData.Length / 16);
 
 		JobHandle.ScheduleBatchedJobs();
 
@@ -656,7 +656,7 @@ public class FractalTree : MonoBehaviour
 		}
 	}
 
-	public static bool Probability(float aP)
+	static bool Probability(float aP)
 	{
 		return UnityEngine.Random.value < 1f - Mathf.Pow(1f - aP, Time.deltaTime);
 	}
@@ -665,7 +665,7 @@ public class FractalTree : MonoBehaviour
 	{
 		return source * pow(smoothing, dt);
 	}
-	public static float3 Damp(float3 source, float smoothing, float dt)
+	static float3 Damp(float3 source, float smoothing, float dt)
 	{
 		return source * pow(smoothing, dt);
 	}
