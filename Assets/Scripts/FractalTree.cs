@@ -140,8 +140,6 @@ public class FractalTree : MonoBehaviour
 
 			int segments = Mathf.RoundToInt(Mathf.Lerp(4, 7, baseNormalizedDepth));
 
-			var direction = normalize(branch.To - branch.From);
-
 			int fromVertex = vertices.Count;
 
 			for (int j = 0; j < segments; j++)
@@ -411,7 +409,7 @@ public class FractalTree : MonoBehaviour
 		CameraControl.Instance.DoClose(5);
 	}
 
-	public void QueueReturnAudioSource(AudioSource audioSource, float time)
+	void QueueReturnAudioSource(AudioSource audioSource, float time)
 	{
 		audioDisableQueue.Add(new AudioSourceTimer { AudioSource = audioSource, Timer = time });
 	}
@@ -445,15 +443,17 @@ public class FractalTree : MonoBehaviour
 			var petalIndex = detachableIndices.Dequeue();
 			var data = petalData[petalIndex];
 			data.FallState = FallState.Flying;
-			petalData[petalIndex] = data;
 
 			instanceData[petalIndex] = 0;
 
 			// bake the vertex shader animation in its transform
 			float variation = shake * 0.15f * abs(bendAngle);
 
-			// TODO: how do we do this without a transform?
-			// orderedPetals[petalIndex].transform.RotateAround(Vector3.zero, bendAxis, Mathf.Rad2Deg * ((bendAngle + variation) * 0.5f));
+			var rotationQuat = math.quaternion.AxisAngle(bendAxis, (bendAngle + variation) * 0.5f);
+			data.Position = mul(rotationQuat, data.Position);
+			data.Rotation = mul(data.Rotation, rotationQuat);
+				
+			petalData[petalIndex] = data;
 
 			// no more petals!
 			if (detachableIndices.Count == 0)
@@ -661,17 +661,13 @@ public class FractalTree : MonoBehaviour
 		return UnityEngine.Random.value < 1f - Mathf.Pow(1f - aP, Time.deltaTime);
 	}
 
-	public static float Damp(float source, float smoothing, float dt)
-	{
-		return source * pow(smoothing, dt);
-	}
 	static float3 Damp(float3 source, float smoothing, float dt)
 	{
 		return source * pow(smoothing, dt);
 	}
 }
 
-public static class IEnumerableExtensions
+public static class EnumerableExtensions
 {
 	public static IEnumerable<T> Shuffle<T>(this IEnumerable<T> source, Random rng)
 	{
