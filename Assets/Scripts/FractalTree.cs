@@ -11,6 +11,7 @@ using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine.Rendering;
 using System.Collections;
+using System.Runtime.InteropServices;
 using Random = Unity.Mathematics.Random;
 
 public enum FallState
@@ -21,14 +22,15 @@ public enum FallState
 	Grounded = 3
 }
 
+[StructLayout(LayoutKind.Sequential)]
 public struct PetalData
 {
+	public FallState FallState;	
 	public float3 Position;
 	public float3 Velocity;
-	public quaternion Rotation;
-	public float3 Scale;
+	public quaternion Rotation;	
 	public float3 AngularVelocity;
-	public FallState FallState;
+	public float3 Scale;	
 }
 
 public struct AudioSourceTimer
